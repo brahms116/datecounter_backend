@@ -17,8 +17,10 @@ namespace datecounter
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureWebHostDefaults(webBuilder =>
+            Host.CreateDefaultBuilder(args).ConfigureAppConfiguration((hostingctx,config)=>{
+                config.AddEnvironmentVariables();
+            })
+            .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
                 });

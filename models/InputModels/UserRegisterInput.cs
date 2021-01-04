@@ -4,9 +4,11 @@ namespace datecounter.Models{
 
     public class UserRegisterInput{
         [Required]
-        public string Email {get;set;}
+        [EmailAddress]
+        public string email {get;set;}
         [Required]
-        public string Password{get;set;}
+        [MinLength(6)]
+        public string password{get;set;}
 
     }
 }
