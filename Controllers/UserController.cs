@@ -28,17 +28,16 @@ namespace datecounter.Controllers{
 
         [HttpPost]
         [Route("register")]
-        public async Task<ActionResult<UserLoginResponse>> Register(UserRegisterInput _input){
+        public async Task<ActionResult<UserRegisterResponse>> Register(UserRegisterInput _input){
             try{
-                int result = await userService.registerUser(_input);
-                string token = await userService.login(new UserLoginInput(){email=_input.email,password=_input.password});
-                UserLoginResponse response = new UserLoginResponse();
-                response.token = token;
+                User insertedUser = await userService.registerUser(_input);
+                string token = await userService.login(new UserLoginInput{email=_input.email,password=_input.password});
+                UserRegisterResponse response = new UserRegisterResponse{isSuccess = true, payload = new UserRegisterResponseData{token=token,user=insertedUser}};
                 return Ok(response);
             }catch(UnauthorizedAccessException ex){
-                return Unauthorized(ex.Message);
+                return Unauthorized(new UserRegisterResponse{error = new ApiError{msg=ex.Message}});
             }catch(Exception ex){
-                return BadRequest(ex.Message);
+                return BadRequest(new UserRegisterResponse{error = new ApiError{msg=ex.Message}});
             }            
             
         }
@@ -48,26 +47,24 @@ namespace datecounter.Controllers{
         public async Task<ActionResult<UserLoginResponse>> Login(UserLoginInput _input){
             try{
                 string token = await userService.login(_input);
-                var res = new UserLoginResponse();
-                res.token = token;
-                return Ok(res);
-            }catch(UnauthorizedAccessException ex){
-                return Unauthorized(ex.Message);
+                return Ok(new UserLoginResponse{isSuccess=true,payload=new UserLoginResponseData{token=token}});
+            }catch(UnauthorizedAccessException ex){               
+                return Unauthorized(new UserLoginResponse{error = new ApiError{msg=ex.Message}});
             }catch(Exception ex){
-                return BadRequest(ex.Message);
+                return BadRequest(new UserLoginResponse{error = new ApiError{msg=ex.Message}});
             }
             
         }
 
 
-        // [HttpGet]
-        // [Route("userinfo")]
-        // [Authorize]
-        // public async Task<ActionResult<User>> GetInfo(){
-        //     string bearerToken = Request.Headers["Authorization"].ToString().Split(" ").Last();
-        //     string id = jwtService.getUserId(bearerToken);
-        //     return Ok();
-        // }
+        [HttpGet]
+        [Route("checktoken")]
+        [Authorize]
+        public IActionResult GetInfo(){
+            string bearerToken = Request.Headers["Authorization"].ToString().Split(" ").Last();
+            string id = jwtService.getUserId(bearerToken);
+            return Ok();
+        }
     }
 
 

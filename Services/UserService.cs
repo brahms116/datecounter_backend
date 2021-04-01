@@ -15,7 +15,7 @@ namespace datecounter.Services
     public interface IUserService
     {
         Task<string> login(UserLoginInput _input);
-        Task<int> registerUser(UserRegisterInput input);
+        Task<User> registerUser(UserRegisterInput input);
     }
 
 
@@ -41,13 +41,13 @@ namespace datecounter.Services
             return result.Any();
         }
 
-        public async Task<int> registerUser(UserRegisterInput input)
+        public async Task<User> registerUser(UserRegisterInput input)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(_config.GetConnectionString("postgres")))
             {
                 if (await _isEmailTaken(input.email, connection))
                 {
-                    throw new InvalidOperationException("RegisterUserError: Email is already taken");
+                    throw new ArgumentException("Email is already taken");
                 }
                 else
                 {
@@ -63,8 +63,8 @@ namespace datecounter.Services
                     Array.Copy(hash, 0, passwordhash, 16, 16);
 
                     //store in db
-                    string sql = "INSERT INTO \"user\" (email,password) VALUES( @email,@password)";
-                    int result = await connection.ExecuteAsync(sql, new { email = input.email, password = Convert.ToBase64String(passwordhash) });
+                    string sql = "INSERT INTO \"user\" (email,password) VALUES( @email,@password) RETURNING*";
+                    User result = await connection.QueryFirstOrDefaultAsync<User>(sql, new { email = input.email, password = Convert.ToBase64String(passwordhash) });
                     return result;
                 }
             }
@@ -76,10 +76,10 @@ namespace datecounter.Services
             {
 
                 string sql = "Select * from \"user\" where email= @email";
-                User resultUser = await connection.QueryFirstAsync<User>(sql, new {email = _input.email });
+                User resultUser = await connection.QueryFirstOrDefaultAsync<User>(sql, new { email = _input.email });
                 if (resultUser == null)
                 {
-                    throw new UnauthorizedAccessException("UserLoginError: Incorrect Credentials");
+                    throw new UnauthorizedAccessException("Incorrect Credentials");
                 }
                 else
                 {
@@ -92,7 +92,7 @@ namespace datecounter.Services
                     {
                         if (hashbytes[16 + i] != inputPasswordBytes[i])
                         {
-                            throw new UnauthorizedAccessException("UserLoginError: Incorrect Credentials");
+                            throw new UnauthorizedAccessException("Incorrect Credentials");
                         }
                     }
 

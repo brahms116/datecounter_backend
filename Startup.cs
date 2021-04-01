@@ -15,6 +15,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 using datecounter.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 
 
 namespace datecounter
@@ -72,6 +73,10 @@ namespace datecounter
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "datecounter v1"));
             }
+
+            app.UseForwardedHeaders(new ForwardedHeadersOptions{
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+            });
             app.UseHttpsRedirection();
             app.UseCors("corsPolicy");
             app.UseRouting();

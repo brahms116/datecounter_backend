@@ -12,11 +12,11 @@ using datecounter.Models;
 namespace datecounter.Services{
     public interface IDateItemService
     {
-        Task<int> createItem(DateItemInput _input, int userId);
-        Task<int> deleteItem(int userId, int itemId);
+        Task<DateItem> createItem(DateItemInput _input, int userId);
+        Task<DateItem> deleteItem(int userId, int itemId);
         Task<DateItem> getCoverItem(int userId);
         Task<IList<DateItem>> getItems(int userId);
-        Task<int> setCoverItem(int userId, int itemId);
+        Task<DateItem> setCoverItem(int userId, int itemId);
     }
 
     public class DateItemService : IDateItemService
@@ -29,15 +29,15 @@ namespace datecounter.Services{
         }
 
 
-        public async Task<int> createItem(DateItemInput _input, int userId)
+        public async Task<DateItem> createItem(DateItemInput _input, int userId)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(config.GetConnectionString("postgres")))
             {
-                string sql = "INSERT INTO \"date_item\" (user_id,title,date) VALUES( @userId, @title, @date) ";
-                int result = await connection.ExecuteAsync(sql, new { userId = userId, title = _input.title, date = _input.date });
-                if (result == 0)
+                string sql = "INSERT INTO \"date_item\" (user_id,title,date) VALUES( @userId, @title, @date) RETURNING*";
+                DateItem result = await connection.QueryFirstOrDefaultAsync<DateItem>(sql, new { userId = userId, title = _input.title, date = _input.date });
+                if (result == null)
                 {
-                    throw new InvalidOperationException("CreateError, Sql returned num of rows affected as 0");
+                    throw new InvalidOperationException("Sql returned num of rows affected as 0");
                 }
                 return result;
             }
@@ -55,7 +55,7 @@ namespace datecounter.Services{
         }
 
 
-        public async Task<int> deleteItem(int userId, int itemId)
+        public async Task<DateItem> deleteItem(int userId, int itemId)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(config.GetConnectionString("postgres")))
             {
@@ -64,41 +64,53 @@ namespace datecounter.Services{
                 List<DateItem> resultItems = result.ToList();
                 if (!resultItems.Any())
                 {
-                    throw new InvalidOperationException("DeleteError: No such date_item");
+                    throw new InvalidOperationException("No such date item");
                 }
                 if (resultItems[0].user_id != userId)
                 {
-                    throw new UnauthorizedAccessException("DeleteError: Resource does not belong to you");
+                    throw new UnauthorizedAccessException("Resource does not belong to you");
                 }
-                sql = "DELETE FROM \"date_item\" WHERE id = @id";
-                int deleteResult = await connection.ExecuteAsync(sql, new { id = itemId });
-                if (deleteResult < 1)
+                sql = "DELETE FROM \"date_item\" WHERE id = @id RETURNING *";
+                DateItem deleteResult = await connection.QueryFirstOrDefaultAsync<DateItem>(sql, new { id = itemId });
+                if (deleteResult == null)
                 {
-                    throw new InvalidOperationException("DeleteError: No rows were deleted");
+                    throw new InvalidOperationException("No rows were deleted");
                 }
                 return deleteResult;
             }
         }
 
-        public async Task<int> setCoverItem(int userId, int itemId)
+        public async Task<DateItem> setCoverItem(int userId, int itemId)
         {
             using (NpgsqlConnection connection = new NpgsqlConnection(config.GetConnectionString("postgres")))
             {
                 string sql = "Select * FROM \"cover_item\" WHERE user_id = @userId";
-                var result = await connection.QueryAsync(sql, new { userId = userId });
+                IEnumerable<DateItem> result = await connection.QueryAsync<DateItem>(sql, new { userId = userId });
+                DateItem item = await connection.QueryFirstOrDefaultAsync<DateItem>("Select * FROM \"date_item\" WHERE id= @itemId", new { itemId = itemId });
+                if (item == null) throw new InvalidOperationException("No Such Item Exists");
+                if (item.user_id != userId) throw new UnauthorizedAccessException("The item does not belong to you");
                 if (result.Any())
                 {
+                    // if(result.ToList()[0].user_id!=userId){
+                    //     throw new UnauthorizedAccessException("SetCoverItemError: The item does not belong to you");
+                    // }
+                    if(result.First().id == itemId) return result.First();
                     sql = "UPDATE \"cover_item\" SET date_item_id = @itemId WHERE user_id = @userId";
-                    int execResult = await connection.ExecuteAsync(sql, new { itemId = itemId, userId = userId });
-                    return execResult;
+                    int updateResult = await connection.ExecuteAsync(sql, new { itemId = itemId, userId = userId });
+                    if(updateResult==0){
+                        throw new InvalidOperationException("No rows were updated");
+                    }
                 }
                 else
                 {
                     sql = "INSERT INTO \"cover_item\"(user_id,date_item_id) VALUES (@userId,@itemId)";
-                    int execResult = await connection.ExecuteAsync(sql, new { itemId = itemId, userId = userId });
-                    return execResult;
+                    int createResult = await connection.ExecuteAsync(sql, new { itemId = itemId, userId = userId });
+                    if(createResult==0){
+                        throw new InvalidOperationException("No rows were inserted");
+                    }
 
                 }
+                return item;
             }
         }
 
